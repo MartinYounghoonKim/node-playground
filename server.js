@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
+const MySQLStore = require('express-mysql-session')(session);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 
@@ -10,7 +10,13 @@ app.use(session({
   secret: 'keyboard cat',
   resave: false,
   saveUninitialized: true,
-  store: new FileStore()
+  store: new MySQLStore({
+    host: 'localhost',
+    port: 3306,
+    user: 'root',
+    password: 'root',
+    database: 'o2'
+  })
 }));
 
 app.get('/count', function(req, res){
@@ -39,7 +45,11 @@ app.get('/auth/login', function(req, res){
 });
 app.get('/auth/logout', function(req,res){
   delete req.session.displayName;
-  res.redirect('/welcome');
+
+  //Database에 session 저장이 끝난 후 실행
+  req.session.save( function(){
+    res.redirect('/welcome');
+  });
 })
 app.get('/welcome', function(req,res){
   //로그인 성공시
@@ -68,7 +78,9 @@ app.post('/auth/login', function(req, res){
   //유저 정보가 일치할 경우
   if(uname === user.username && pwd === user.password){
     req.session.displayName = user.displayName;
-    res.redirect('/welcome');
+    req.session.save( function(){
+      res.redirect('/welcome');
+    })
   } else {
     res.send('error<a href="/auth/login">login</a>');
   }
