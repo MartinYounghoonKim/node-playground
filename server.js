@@ -51,6 +51,43 @@ app.get('/auth/logout', function(req,res){
     res.redirect('/welcome');
   });
 })
+app.get('/auth/register', function(req, res){
+  var output = `
+  <h1>Register</h1>
+  <form action="/auth/register" method="post">
+    <p>
+      <input type="text" name="username" placeholder="username">
+    </p>
+    <p>
+      <input type="password" name="password" placeholder="password">
+    </p>
+    <p>
+      <input type="text" name="displayName" placeholder="displayName">
+    </p>
+    <input type="submit"/>
+  </form>
+  `;
+  res.send(output);
+});
+var users = [
+  {
+    username: 'martin',
+    password: '111',
+    displayName: 'Martin'
+  }
+]
+app.post('/auth/register', function(req, res){
+  var user = {
+    username: req.body.username,
+    password: req.body.password,
+    displayName: req.body.displayName
+  };
+  users.push(user);
+  req.session.displayName = req.body.displayName;
+  req.session.save(function(){
+    res.redirect('/welcome')
+  });
+})
 app.get('/welcome', function(req,res){
   //로그인 성공시
   if(req.session.displayName){
@@ -61,29 +98,29 @@ app.get('/welcome', function(req,res){
   } else {
     res.send(`
       <h1>Welcome</h1>
-      <a href="/auth/login">Login</a>
+      <ul>
+        <li><a href="/auth/login">Login</a></li>
+        <li><a href="/auth/register">register</a></li>
+      </ul>
+      
     `)
   }
   
 })
 app.post('/auth/login', function(req, res){
-  var user = {
-    username: 'martin',
-    password: '111',
-    displayName: 'Martin'
-  };
   var uname = req.body.username;
   var pwd = req.body.password;
-
-  //유저 정보가 일치할 경우
-  if(uname === user.username && pwd === user.password){
-    req.session.displayName = user.displayName;
-    req.session.save( function(){
-      res.redirect('/welcome');
-    })
-  } else {
-    res.send('error<a href="/auth/login">login</a>');
+  for(var i=0; i<users.length; i++){
+    var user = users[i];
+    if(uname === user.username && pwd === user.password){
+      req.session.displayName = user.displayName;
+      return req.session.save( function(){
+        res.redirect('/welcome');
+      })
+    } 
   }
+
+  res.send('error<a href="/auth/login">login</a>');
 });
 
 app.listen(3000, function () {
