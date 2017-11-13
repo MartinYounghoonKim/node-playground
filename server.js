@@ -4,6 +4,8 @@ const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const bkfd2Password  = require('pbkdf2-password');
+const hasher = bkfd2Password();
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(session({
@@ -72,21 +74,27 @@ app.get('/auth/register', function(req, res){
 var users = [
   {
     username: 'martin',
-    password: '111',
+    password: 'b98Bc8FJ89kXRiSdlAF929ILmQv4R504mawrt66MCWzCLBbrbrALsvZ8BYtt1xpOboSnvI9ucvjFzQq/9MsJTZuvzI3ruPZ0pgrkMDTPyHaLqELSzJkHj+kIu74dxC5PT2raNdqt9yf98ocZVf7H1nCI0Wuu0KGKHDU8JZste9M=',
+    salt: 'xgHB1/YlT24CKyZzi8PJUMbqUlKUdJCTTgmpbaXK+Hc2qGDm3LvENaXRq1aUrT2wenK6vN21Sqr1EX/4dk4Zug==',
     displayName: 'Martin'
   }
 ]
 app.post('/auth/register', function(req, res){
-  var user = {
-    username: req.body.username,
-    password: req.body.password,
-    displayName: req.body.displayName
-  };
-  users.push(user);
-  req.session.displayName = req.body.displayName;
-  req.session.save(function(){
-    res.redirect('/welcome')
+  hasher({password:req.body.password}, function(err, pass, salt, hash){
+    var user = {
+      username: req.body.username,
+      password: hash,
+      salt: salt,
+      displayName: req.body.displayName
+    };
+    users.push(user);
+    req.session.displayName = req.body.displayName;
+    req.session.save(function(){
+      res.redirect('/welcome')
+    });
   });
+  
+  
 })
 app.get('/welcome', function(req,res){
   //로그인 성공시
@@ -112,15 +120,26 @@ app.post('/auth/login', function(req, res){
   var pwd = req.body.password;
   for(var i=0; i<users.length; i++){
     var user = users[i];
-    if(uname === user.username && pwd === user.password){
-      req.session.displayName = user.displayName;
-      return req.session.save( function(){
-        res.redirect('/welcome');
-      })
-    } 
+    if(uname === user.username){
+      return hasher({password:pwd, salt:user.salt}, function(err,pass,salt, hash){
+        if( hash === user.password) {
+          req.session.displayName = user.displayName;
+          req.session.save( function(){
+            res.redirect('/welcome');
+          });
+        } else {
+          res.send('error<a href="/auth/login">login</a>');
+        }
+      });
+    }
+    // if(uname === user.username && bkfd2Password(pwd+user.salt) === user.password){
+    //   req.session.displayName = user.displayName;
+    //   return req.session.save( function(){
+    //     res.redirect('/welcome');
+    //   })
+    // } 
   }
-
-  res.send('error<a href="/auth/login">login</a>');
+  
 });
 
 app.listen(3000, function () {
