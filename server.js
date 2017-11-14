@@ -4,6 +4,8 @@ const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+var passport = require('passport');
+var LocalStrategy = require('passport-local').Strategy;
 const bkfd2Password  = require('pbkdf2-password');
 const hasher = bkfd2Password();
 
@@ -20,6 +22,8 @@ app.use(session({
     database: 'o2'
   })
 }));
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.get('/count', function(req, res){
   if(req.session.count){
@@ -114,33 +118,73 @@ app.get('/welcome', function(req,res){
     `)
   }
   
-})
-app.post('/auth/login', function(req, res){
-  var uname = req.body.username;
-  var pwd = req.body.password;
+});
+passport.serializeUser(function(user, done) {
+  console.log('serializeUser', user);
+  done(null, user.username);
+});
+
+passport.deserializeUser(function(id, done) {
+  console.log('deserializeUser', id);
   for(var i=0; i<users.length; i++){
     var user = users[i];
-    if(uname === user.username){
-      return hasher({password:pwd, salt:user.salt}, function(err,pass,salt, hash){
-        if( hash === user.password) {
-          req.session.displayName = user.displayName;
-          req.session.save( function(){
-            res.redirect('/welcome');
-          });
-        } else {
-          res.send('error<a href="/auth/login">login</a>');
-        }
-      });
+    if(user.username === id){
+      return done(null, user);
     }
-    // if(uname === user.username && bkfd2Password(pwd+user.salt) === user.password){
-    //   req.session.displayName = user.displayName;
-    //   return req.session.save( function(){
-    //     res.redirect('/welcome');
-    //   })
-    // } 
   }
-  
 });
+passport.use(new LocalStrategy(
+  function(username, password, done) {
+    var uname = username;
+    var pwd = password;
+    for(var i=0; i<users.length; i++){
+      var user = users[i];
+      if(uname === user.username){
+        return hasher({password:pwd, salt:user.salt}, function(err,pass,salt, hash){
+          if( hash === user.password) {
+            console.log('LocalStrategy', user);
+            done(null, user);
+          } else {
+            done(null, false);
+          }
+        });
+      }
+    }
+    done(null, false);
+  }
+));
+
+app.post(
+  '/auth/login', 
+  passport.authenticate(
+    'local', 
+    { 
+      successRedirect: '/welcome',
+      failureRedirect: '/auth/login',
+      failureFlash: false 
+    }
+  )
+);
+// app.post('/auth/login', function(req, res){
+//   var uname = req.body.username;
+//   var pwd = req.body.password;
+//   for(var i=0; i<users.length; i++){
+//     var user = users[i];
+//     if(uname === user.username){
+//       return hasher({password:pwd, salt:user.salt}, function(err,pass,salt, hash){
+//         if( hash === user.password) {
+//           req.session.displayName = user.displayName;
+//           req.session.save( function(){
+//             res.redirect('/welcome');
+//           });
+//         } else {
+//           res.send('error<a href="/auth/login">login</a>');
+//         }
+//       });
+//     }
+//   }
+  
+// });
 
 app.listen(3000, function () {
   console.log('Example app listening on port 3000!');
